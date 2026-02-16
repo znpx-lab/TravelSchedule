@@ -121,7 +121,7 @@ function renderScheduleList() {
         grouped[date].forEach(item => {
             html += `
                 <div class="schedule-item" data-id="${item.id}" style="border-left: 5px solid ${getCategoryColor(item.category)}">
-                    <div class="schedule-time">${formatTimeRange(item.startTime, item.endTime)}</div>
+                    <div class="schedule-time">${formatTimeRange(item.startTime, item.endTime, item.isTimeUndecided)}</div>
                     <div class="schedule-info">
                         <div class="schedule-title">${item.title}</div>
                         ${item.description ? `<div class="schedule-desc">${item.description}</div>` : ''}
@@ -189,7 +189,7 @@ function renderTimelineView() {
         grouped[date].forEach(item => {
             html += `
                 <div class="timeline-item" style="border-left-color: ${getCategoryColor(item.category)}">
-                    <div class="timeline-time">${formatTimeRange(item.startTime, item.endTime)}</div>
+                    <div class="timeline-time">${formatTimeRange(item.startTime, item.endTime, item.isTimeUndecided)}</div>
                     <div class="timeline-content">
                         <div class="timeline-title">${item.title}</div>
                         ${item.description ? `<div class="timeline-desc">${item.description}</div>` : ''}
@@ -251,7 +251,10 @@ function getCategoryColor(cat) {
  * formatTimeRange()
  * 時間の表示を整形（未定対応）
  */
-function formatTimeRange(startTime, endTime) {
+function formatTimeRange(startTime, endTime, isTimeUndecided = false) {
+    // 未定フラグが立っている場合は「未定」を表示
+    if (isTimeUndecided) return '未定';
+    
     const start = startTime || '';
     const end = endTime || '';
     if (!start && !end) return '未定';
@@ -336,14 +339,18 @@ export function showScheduleModal(scheduleId = null, defaultDate = null) {
                 <label for="sched-date">日付 *</label>
                 <input type="date" id="sched-date" value="${initialDate}" required>
             </div>
-            <div class="form-group-row" style="display: flex; gap: 10px;">
-                <div class="form-group" style="flex: 1;">
+            <div class="form-group-row" style="display: flex; gap: 10px; align-items: flex-end;">
+                <div class="form-group" style="flex: 0 0 140px;">
                     <label for="sched-start">開始時間</label>
                     <input type="time" id="sched-start" value="${schedule ? (schedule.startTime || '') : ''}" onchange="window.updateScheduleEndTime()">
                 </div>
-                <div class="form-group" style="flex: 1;">
+                <div class="form-group" style="flex: 0 0 140px;">
                     <label for="sched-end">終了時間</label>
                     <input type="time" id="sched-end" value="${schedule ? (schedule.endTime || '') : ''}" onchange="window.setEndTimeModified()">
+                </div>
+                <div class="form-group" style="flex: 0 0 60px;">
+                    <label for="sched-time-undecided">未定</label>
+                    <input type="checkbox" id="sched-time-undecided" ${schedule?.isTimeUndecided ? 'checked' : ''} style="cursor: pointer;">
                 </div>
             </div>
             <div class="form-group">
@@ -459,6 +466,7 @@ export function showScheduleModal(scheduleId = null, defaultDate = null) {
             date: document.getElementById('sched-date').value,
             startTime: document.getElementById('sched-start').value,
             endTime: document.getElementById('sched-end').value,
+            isTimeUndecided: document.getElementById('sched-time-undecided').checked,
             category: document.getElementById('sched-category').value,
             location: locationId,
             description: document.getElementById('sched-desc').value,
@@ -582,7 +590,7 @@ window.showDeletedSchedules = () => {
                 <div style="display: flex; justify-content: space-between; align-items: start;">
                     <div>
                         <div style="font-weight: bold;">${item.title}</div>
-                        <div style="color: #666; font-size: 0.9em;">📅 ${item.date} ${formatTimeRange(item.startTime, item.endTime)}</div>
+                        <div style="color: #666; font-size: 0.9em;">📅 ${item.date} ${formatTimeRange(item.startTime, item.endTime, item.isTimeUndecided)}</div>
                         ${item.description ? `<div style="color: #666; font-size: 0.9em; margin-top: 5px;">${item.description}</div>` : ''}
                     </div>
                     <div style="display: flex; gap: 5px;">

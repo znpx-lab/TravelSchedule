@@ -120,14 +120,21 @@ function setupEventListeners() {
     if (modal) {
         const closeBtn = modal.querySelector('.close-btn');
         const cancelBtn = modal.querySelector('#modal-cancel');
+        const modalContent = modal.querySelector('.modal-content');
+        let modalPointerDownInside = false;
 
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
         if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
+        modal.addEventListener('pointerdown', (event) => {
+            modalPointerDownInside = modalContent?.contains(event.target) || false;
+        });
+
         window.addEventListener('click', (event) => {
-            if (event.target === modal) {
+            if (event.target === modal && !modalPointerDownInside) {
                 closeModal();
             }
+            modalPointerDownInside = false;
         });
     }
 

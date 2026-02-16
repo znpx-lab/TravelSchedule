@@ -324,6 +324,67 @@ header h1 {
     font-family: inherit;
 }
 
+/* Expense Calculator */
+.calc-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.calc-display {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: inherit;
+}
+
+.calc-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.calc-buttons button {
+    padding: 8px 0;
+    border: 1px solid var(--border-color);
+    background-color: #f7f7f7;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.calc-buttons button:hover {
+    background-color: #eef2f1;
+}
+
+.calc-op {
+    background-color: #ecf3fb;
+}
+
+.calc-action {
+    background-color: #f7efe8;
+}
+
+.calc-eq {
+    grid-column: span 2;
+    background-color: var(--secondary-color);
+    color: var(--white);
+    border: none;
+}
+
+.calc-apply {
+    align-self: flex-end;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: #ecf0f1;
+    cursor: pointer;
+}
+
+.calc-apply:hover {
+    background-color: #e5edf7;
+}
+
 /* Responsive */
 @media (min-width: 768px) {
     header h1 {
@@ -730,6 +791,37 @@ header h1 {
     color: var(--accent-color);
 }
 
+.split-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--light-text);
+    cursor: pointer;
+}
+
+.split-toggle input {
+    cursor: pointer;
+}
+
+.split-count {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--light-text);
+}
+
+.split-count input {
+    width: 70px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: inherit;
+}
+
 .settlement-card h4 {
     border-bottom: 1px solid var(--border-color);
     margin-bottom: 10px;
@@ -759,6 +851,12 @@ header h1 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+}
+
+.expense-main {
+    flex: 1;
+    min-width: 0;
 }
 
 .expense-title {
@@ -775,9 +873,20 @@ header h1 {
     margin-right: 10px;
 }
 
+.expense-flag {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: #f7efe8;
+    color: #b06d2e;
+    font-size: 0.75rem;
+}
+
 .expense-details {
     text-align: right;
     margin: 0 15px;
+    min-width: 140px;
+    flex: 0 0 140px;
 }
 
 .expense-amount {

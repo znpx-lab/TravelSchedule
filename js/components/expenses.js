@@ -17,6 +17,31 @@ export function initExpenses() {
         showExpenseModal();
     });
 
+    const totalSplitToggle = document.getElementById('total-split-only');
+    if (totalSplitToggle) {
+        totalSplitToggle.checked = getTotalSplitOnly();
+        totalSplitToggle.addEventListener('change', () => {
+            setTotalSplitOnly(totalSplitToggle.checked);
+            renderExpenseList();
+        });
+    }
+
+    const splitCountInput = document.getElementById('split-count');
+    if (splitCountInput) {
+        splitCountInput.value = String(getSplitCount());
+        splitCountInput.addEventListener('input', () => {
+            const nextValue = normalizeSplitCount(splitCountInput.value);
+            setSplitCount(nextValue);
+            renderExpenseList();
+        });
+        splitCountInput.addEventListener('change', () => {
+            const nextValue = normalizeSplitCount(splitCountInput.value);
+            splitCountInput.value = String(nextValue);
+            setSplitCount(nextValue);
+            renderExpenseList();
+        });
+    }
+
     window.addEventListener('dataChanged', () => {
         renderExpenseList();
     });
@@ -31,10 +56,22 @@ function renderExpenseList() {
     const totalAmountSpan = document.getElementById('total-amount');
     const expenses = getExpenses();
     const users = getUsers();
+    const totalSplitOnly = getTotalSplitOnly();
+    const summaryContainer = document.querySelector('.expense-summary');
+    const splitCountInput = document.getElementById('split-count');
+    if (splitCountInput) {
+        const currentValue = splitCountInput.value;
+        if (!document.activeElement || document.activeElement !== splitCountInput) {
+            splitCountInput.value = String(getSplitCount());
+        } else if (!currentValue) {
+            splitCountInput.value = String(getSplitCount());
+        }
+    }
 
     if (expenses.length === 0) {
         listContainer.innerHTML = '<p class="empty-message">費用が登録されていません。</p>';
         totalAmountSpan.textContent = '¥0';
+        summaryContainer?.querySelector('.settlement-card')?.remove();
         return;
     }
 
@@ -42,8 +79,11 @@ function renderExpenseList() {
     let html = '';
 
     expenses.sort((a, b) => b.date.localeCompare(a.date)).forEach(exp => {
-        if (exp.amount !== null && exp.amount !== undefined) {
-            total += exp.amount;
+        const isSplit = isSplitExpense(exp);
+        const amount = getExpenseAmount(exp);
+        const hasAmount = exp.amount !== null && exp.amount !== undefined;
+        if (!totalSplitOnly || isSplit) {
+            total += amount;
         }
         const payer = users.find(u => u.id === exp.paidBy);
         
@@ -54,10 +94,11 @@ function renderExpenseList() {
                     <div class="expense-meta">
                         <span class="expense-date">${exp.date}</span>
                         <span class="expense-cat">${getExpenseCategoryLabel(exp.category)}</span>
+                        ${isSplit ? '' : '<span class="expense-flag">割り勘対象外</span>'}
                     </div>
                 </div>
                 <div class="expense-details">
-                    <div class="expense-amount">${exp.amount !== null && exp.amount !== undefined ? '¥' + exp.amount.toLocaleString() : '未定'}</div>
+                    <div class="expense-amount">${hasAmount ? '¥' + amount.toLocaleString() : '未定'}</div>
                     <div class="expense-payer">支払者: ${payer ? payer.name : '不明'}</div>
                 </div>
                 <div class="expense-actions">
@@ -97,13 +138,18 @@ function getExpenseCategoryLabel(cat) {
 function renderSettlement() {
     const expenses = getExpenses();
     const users = getUsers();
-    if (users.length <= 1) return;
-
+    const splitCount = getEffectiveSplitCount();
     const summaryContainer = document.querySelector('.expense-summary');
+    if (splitCount <= 1) {
+        summaryContainer?.querySelector('.settlement-card')?.remove();
+        return;
+    }
+
+    const splitExpenses = expenses.filter(isSplitExpense);
     let settlementHtml = '<div class="settlement-card"><h4>割り勘目安</h4><ul>';
     
-    const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const perPerson = Math.floor(total / users.length);
+    const total = splitExpenses.reduce((sum, exp) => sum + getExpenseAmount(exp), 0);
+    const perPerson = Math.floor(total / splitCount);
 
     settlementHtml += `<li>1人あたり: ¥${perPerson.toLocaleString()}</li>`;
     
@@ -111,8 +157,8 @@ function renderSettlement() {
     const balances = {};
     users.forEach(u => balances[u.id] = 0);
     
-    expenses.forEach(exp => {
-        balances[exp.paidBy] += exp.amount;
+    splitExpenses.forEach(exp => {
+        balances[exp.paidBy] += getExpenseAmount(exp);
     });
 
     users.forEach(u => {
@@ -152,6 +198,7 @@ function showExpenseModal(expenseId = null) {
     const categoryOptionsHtml = expenseCategories.map(cat =>
         `<option value="${cat.value}" ${exp?.category === cat.value ? 'selected' : ''}>${cat.label}</option>`
     ).join('');
+    const isSplitChecked = exp ? exp.isSplit !== false : true;
 
     const title = exp ? '費用を編集' : '費用を追加';
     const bodyHtml = `
@@ -163,6 +210,38 @@ function showExpenseModal(expenseId = null) {
             <div class="form-group">
                 <label for="exp-amount">金額 (¥)</label>
                 <input type="number" id="exp-amount" value="${exp ? exp.amount : ''}" placeholder="未定">
+            </div>
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="exp-split" ${isSplitChecked ? 'checked' : ''} style="cursor: pointer;">
+                    <span>割り勘対象</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="exp-calc">電卓</label>
+                <div class="calc-panel">
+                    <input type="text" id="exp-calc" class="calc-display" value="${exp ? exp.amount : ''}" placeholder="例: 1200+300" inputmode="numeric" oninput="window.sanitizeCalcInput('exp-calc')">
+                    <div class="calc-buttons">
+                        <button type="button" onclick="window.calcAppend('7')">7</button>
+                        <button type="button" onclick="window.calcAppend('8')">8</button>
+                        <button type="button" onclick="window.calcAppend('9')">9</button>
+                        <button type="button" class="calc-op" onclick="window.calcAppend('/')">/</button>
+                        <button type="button" onclick="window.calcAppend('4')">4</button>
+                        <button type="button" onclick="window.calcAppend('5')">5</button>
+                        <button type="button" onclick="window.calcAppend('6')">6</button>
+                        <button type="button" class="calc-op" onclick="window.calcAppend('*')">*</button>
+                        <button type="button" onclick="window.calcAppend('1')">1</button>
+                        <button type="button" onclick="window.calcAppend('2')">2</button>
+                        <button type="button" onclick="window.calcAppend('3')">3</button>
+                        <button type="button" class="calc-op" onclick="window.calcAppend('-')">-</button>
+                        <button type="button" class="calc-action" onclick="window.calcClear('exp-calc')">C</button>
+                        <button type="button" onclick="window.calcAppend('0')">0</button>
+                        <button type="button" class="calc-action" onclick="window.calcBackspace('exp-calc')">BS</button>
+                        <button type="button" class="calc-op" onclick="window.calcAppend('+')">+</button>
+                        <button type="button" class="calc-eq" onclick="window.calcEvaluate('exp-calc')">=</button>
+                    </div>
+                    <button type="button" class="calc-apply" onclick="window.applyCalcToAmount()">金額に反映</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="exp-date">日付 *</label>
@@ -203,6 +282,7 @@ function showExpenseModal(expenseId = null) {
             paidBy: document.getElementById('exp-payer').value,
             category: document.getElementById('exp-category').value,
             notes: document.getElementById('exp-notes').value,
+            isSplit: document.getElementById('exp-split').checked,
             updatedAt: new Date().toISOString()
         };
 
@@ -231,5 +311,118 @@ window.deleteExpense = (id) => {
         if (!trip) return;
         trip.expenses = trip.expenses.filter(e => e.id !== id);
         saveData(data);
+    }
+};
+
+const TOTAL_SPLIT_ONLY_KEY = 'expense_total_split_only';
+const SPLIT_COUNT_KEY = 'expense_split_count';
+
+function getTotalSplitOnly() {
+    return localStorage.getItem(TOTAL_SPLIT_ONLY_KEY) === 'true';
+}
+
+function setTotalSplitOnly(value) {
+    localStorage.setItem(TOTAL_SPLIT_ONLY_KEY, String(value));
+}
+
+function getSplitCount() {
+    const rawValue = localStorage.getItem(SPLIT_COUNT_KEY);
+    const parsed = rawValue ? parseInt(rawValue, 10) : NaN;
+    if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+    const users = getUsers();
+    return users.length > 0 ? users.length : 1;
+}
+
+function setSplitCount(value) {
+    localStorage.setItem(SPLIT_COUNT_KEY, String(value));
+}
+
+function getEffectiveSplitCount() {
+    const splitCountInput = document.getElementById('split-count');
+    if (splitCountInput) {
+        const parsed = parseInt(splitCountInput.value, 10);
+        if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+    }
+    return getSplitCount();
+}
+
+function normalizeSplitCount(value) {
+    const parsed = parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+    return 1;
+}
+
+function isSplitExpense(expense) {
+    return expense?.isSplit !== false;
+}
+
+function getExpenseAmount(expense) {
+    const amount = expense?.amount;
+    return amount !== null && amount !== undefined ? amount : 0;
+}
+
+function sanitizeCalcExpression(expr) {
+    return String(expr || '').replace(/[^0-9+\-*/().]/g, '');
+}
+
+window.sanitizeCalcInput = (id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.value = sanitizeCalcExpression(input.value);
+};
+
+window.calcAppend = (value) => {
+    const input = document.getElementById('exp-calc');
+    if (!input) return;
+    input.value += value;
+};
+
+window.calcClear = (id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.value = '';
+};
+
+window.calcBackspace = (id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.value = input.value.slice(0, -1);
+};
+
+window.calcEvaluate = (id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    const expr = sanitizeCalcExpression(input.value).trim();
+    if (!expr) return;
+    try {
+        const result = Function(`"use strict"; return (${expr});`)();
+        if (Number.isFinite(result)) {
+            input.value = String(Math.round(result));
+        }
+    } catch (error) {
+        alert('計算式を確認してください。');
+    }
+};
+
+window.applyCalcToAmount = () => {
+    const calcInput = document.getElementById('exp-calc');
+    const amountInput = document.getElementById('exp-amount');
+    if (!calcInput || !amountInput) return;
+    const expr = sanitizeCalcExpression(calcInput.value).trim();
+    if (!expr) {
+        amountInput.value = '';
+        return;
+    }
+    let result = Number(expr);
+    if (!Number.isFinite(result)) {
+        try {
+            result = Function(`"use strict"; return (${expr});`)();
+        } catch (error) {
+            alert('計算式を確認してください。');
+            return;
+        }
+    }
+    if (Number.isFinite(result)) {
+        amountInput.value = String(Math.round(result));
     }
 };
