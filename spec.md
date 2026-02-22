@@ -58,7 +58,7 @@
 - **カテゴリ分類**: 食事、移動、宿泊、アクティビティなど
 - **費用一覧表示**: 発生順または支払者別に表示
 - **合計計算**: 総額自動計算
-- **割り勘計算**: 人数分割＆個人負担額の計算
+- **割勘計算**: 割勘対象の合計を人数で割り（切り捨て）、割勘対象外の合計は各人に上乗せして表示します。割り算で生じた端数は別途「端数」として表示します。
 - **支払者追跡**: 誰がいくら支払ったかの記録
 
 #### 3.1.5 やることリスト/チェックリスト
@@ -266,7 +266,7 @@
 ### 6.3 予算管理画面
 - 費用一覧表示
 - カテゴリ別集計
-- 割り勘計算結果
+- 割勘計算結果
 
 ### 6.4 やることリスト画面
 - タスク一覧（チェックボックス付き）
@@ -290,7 +290,7 @@
 
 ### Phase 2（拡張機能）
 - [ ] 場所情報管理＆地図連携
-- [ ] 予算管理＆割り勘計算
+- [ ] 予算管理＆割勘計算
 - [ ] やることリスト
 - [ ] メモ・コメント機能
 
@@ -481,22 +481,22 @@ function getEventsByDate(date, category = null) {
 **アルゴリズムや判断分岐に詳細なコメント:**
 
 ```javascript
-// 割り勘計算: 各参加者が負担すべき金額を計算
-// 例: 10,000円を3人で割り勘 → 3,333円/人 + 残り1円を最初の人が負担
-function calculateDutchPay(totalAmount, participantCount) {
-  // 基本金額（小数点切り捨て）
-  const baseAmount = Math.floor(totalAmount / participantCount);
-  
-  // 余りの計算（割り切れない場合の端数）
-  const remainder = totalAmount % participantCount;
-  
-  // 各参加者の負担額を配列で返す
-  const payments = new Array(participantCount).fill(baseAmount);
-  
-  // 最初のN名に余りを1円ずつ加算（公平性のため）
-  for (let i = 0; i < remainder; i++) {
-    payments[i] += 1;
-  }
+// 割勘計算: 割勘対象と割勘対象外を分けて合計し、各人の目安を算出
+// アルゴリズム（現在の仕様）:
+// 1) 割勘対象の合計 (splitSum) を参加人数で割り、1人あたりの切り捨て値 (splitPer) を求める
+// 2) 割勘対象外の合計 (nonSplitSum) は各人にそのまま上乗せする
+// 3) 1人あたり = splitPer + nonSplitSum
+// 4) 割り算で発生した余り (remainder = splitSum - splitPer * participantCount) を「端数」として別途表示する
+function calculateSettlement(expenses, participantCount) {
+  // expenses: [{ amount: 1000, isSplit: true|false, paidBy: 'user' }, ...]
+  const splitSum = expenses.reduce((s, e) => e.isSplit !== false ? s + (e.amount || 0) : s, 0);
+  const nonSplitSum = expenses.reduce((s, e) => e.isSplit === false ? s + (e.amount || 0) : s, 0);
+
+  const splitPer = Math.floor(splitSum / participantCount);
+  const remainder = splitSum - (splitPer * participantCount);
+  const perPerson = splitPer + nonSplitSum;
+
+  return { splitSum, nonSplitSum, splitPer, perPerson, remainder };
   
   return payments;
 }
@@ -746,11 +746,11 @@ UI.renderScheduleList(Data.getAllEvents());
 showNotification("イベントを追加しました: " + eventData.title);
 ```
 
-### 15.2 割り勘計算の実装例
+### 15.2 割勘計算の実装例
 
 ```javascript
 /**
- * 予算管理における割り勘計算の流れ
+ * 予算管理における割勘計算の流れ
  */
 // サンプルデータ
 const expenses = [

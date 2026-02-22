@@ -1,6 +1,6 @@
 /* ========================================
    旅行スケジュール管理 - 予算・費用管理コンポーネント
-   旅行中の費用記録・割り勘計算機能を管理します。
+    旅行中の費用記録・割勘計算機能を管理します。
    ======================================== */
 
 import { getExpenses, saveData, loadData, generateId, getUsers, getCurrentTrip } from '../storage.js';
@@ -49,7 +49,7 @@ export function initExpenses() {
 
 /**
  * renderExpenseList()
- * 費用一覧をリスト形式で描画し、合計金額と割り勘目安を表示
+ * 費用一覧をリスト形式で描画し、合計金額と費用目安を表示
  */
 function renderExpenseList() {
     const listContainer = document.getElementById('expense-list');
@@ -94,7 +94,7 @@ function renderExpenseList() {
                     <div class="expense-meta">
                         <span class="expense-date">${exp.date}</span>
                         <span class="expense-cat">${getExpenseCategoryLabel(exp.category)}</span>
-                        ${isSplit ? '' : '<span class="expense-flag">割り勘対象外</span>'}
+                        ${isSplit ? '' : '<span class="expense-flag">割勘対象外</span>'}
                     </div>
                 </div>
                 <div class="expense-details">
@@ -133,7 +133,7 @@ function getExpenseCategoryLabel(cat) {
 
 /**
  * renderSettlement()
- * 割り勘計算を行い、各メンバーの支払残高を表示
+ * 割勘計算を行い、各メンバーの支払残高を表示
  */
 function renderSettlement() {
     const expenses = getExpenses();
@@ -141,38 +141,54 @@ function renderSettlement() {
     const splitCount = getEffectiveSplitCount();
     const summaryContainer = document.querySelector('.expense-summary');
     if (splitCount <= 1) {
+        // 割勘人数が1人の場合、summary-card内の inline-settlement を削除して非表示にする
+        const summaryCard = summaryContainer?.querySelector('.summary-card');
+        summaryCard?.querySelector('.inline-settlement')?.remove();
         summaryContainer?.querySelector('.settlement-card')?.remove();
         return;
     }
 
-    const splitExpenses = expenses.filter(isSplitExpense);
-    let settlementHtml = '<div class="settlement-card"><h4>割り勘目安</h4><ul>';
-    
-    const total = splitExpenses.reduce((sum, exp) => sum + getExpenseAmount(exp), 0);
-    const perPerson = Math.floor(total / splitCount);
+    // per-person 計算:
+    // - 割り勘対象の合計を人数で割る
+    // - 割り勘対象外の合計は各人にそのまま上乗せする（要求どおり）
+    const settlementExpenses = expenses;
+        const splitSum = settlementExpenses.reduce((s, exp) => isSplitExpense(exp) ? s + getExpenseAmount(exp) : s, 0);
+        const nonSplitSum = settlementExpenses.reduce((s, exp) => isSplitExpense(exp) ? s : s + getExpenseAmount(exp), 0);
 
-    settlementHtml += `<li>1人あたり: ¥${perPerson.toLocaleString()}</li>`;
-    
-    // Simple balance calculation
-    const balances = {};
-    users.forEach(u => balances[u.id] = 0);
-    
-    splitExpenses.forEach(exp => {
-        balances[exp.paidBy] += getExpenseAmount(exp);
-    });
+        // 割り勘部分を人数で割った1人あたり（切り捨て）と端数（合計の余り）を算出
+        const splitPer = Math.floor(splitSum / splitCount);
+        const remainder = splitSum - (splitPer * splitCount);
+        const perPerson = splitPer + nonSplitSum;
 
-    users.forEach(u => {
-        const diff = balances[u.id] - perPerson;
-        const statusClass = diff >= 0 ? 'plus' : 'minus';
-        settlementHtml += `<li>${u.name}: <span class="${statusClass}">${diff >= 0 ? '+' : ''}¥${diff.toLocaleString()}</span></li>`;
-    });
+        // balance 計算（UI 下部の個別行表示用）
+        const balances = {};
+        users.forEach(u => balances[u.id] = 0);
+        settlementExpenses.forEach(exp => {
+            balances[exp.paidBy] += getExpenseAmount(exp);
+        });
 
-    settlementHtml += '</ul></div>';
-    
-    // Update or append settlement card
-    const existing = summaryContainer.querySelector('.settlement-card');
-    if (existing) existing.remove();
-    summaryContainer.insertAdjacentHTML('beforeend', settlementHtml);
+        // Insert inline settlement into the existing summary card (same panel as 合計金額)
+        const summaryCard = summaryContainer.querySelector('.summary-card');
+        if (!summaryCard) return;
+
+        // remove previous inline-settlement if exists
+        const prev = summaryCard.querySelector('.inline-settlement');
+        if (prev) prev.remove();
+
+        let inlineHtml = `<div class="inline-settlement">`;
+        inlineHtml += `<div class="per-person-row"><span class="per-person-label">1人あたり</span><span class="per-person-value">¥${perPerson.toLocaleString()}</span></div>`;
+        inlineHtml += `<div class="settlement-breakdown">`;
+        inlineHtml += `<div class="break-item">割勘対象合計: <span>¥${splitSum.toLocaleString()}</span></div>`;
+        inlineHtml += `<div class="break-item">割勘対象外合計: <span>¥${nonSplitSum.toLocaleString()}</span></div>`;
+        if (remainder > 0) {
+            inlineHtml += `<div class="break-item">端数: <span>¥${remainder.toLocaleString()}</span></div>`;
+        }
+        inlineHtml += `</div></div>`;
+
+        summaryCard.insertAdjacentHTML('beforeend', inlineHtml);
+
+        // 個別ユーザー差分行（summary-card ではなくリスト内に表示する既存の方法は維持）
+        // ここでは「自分」は summary-card 内に表示しないため、既存の settlement-card の個別行は生成していません。
 }
 
 /**
@@ -214,7 +230,7 @@ function showExpenseModal(expenseId = null) {
             <div class="form-group">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                     <input type="checkbox" id="exp-split" ${isSplitChecked ? 'checked' : ''} style="cursor: pointer;">
-                    <span>割り勘対象</span>
+                    <span>割勘対象</span>
                 </label>
             </div>
             <div class="form-group">

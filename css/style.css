@@ -791,6 +791,31 @@ header h1 {
     color: var(--accent-color);
 }
 
+/* Inline settlement (merged into summary-card) */
+.inline-settlement {
+    margin-top: 12px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 10px;
+}
+.per-person-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.per-person-label {
+    color: var(--light-text);
+    font-size: 0.95rem;
+}
+.per-person-value {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: var(--secondary-color);
+}
+.settlement-breakdown { font-size: 0.9rem; color: var(--light-text); }
+.settlement-breakdown .break-item { display: flex; justify-content: space-between; margin-top:4px; }
+
 .split-toggle {
     display: inline-flex;
     align-items: center;

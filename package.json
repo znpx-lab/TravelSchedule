@@ -1,0 +1,11 @@
+{
+  "name": "travel-schedule-tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "jest --colors --json --outputFile=reports/test-results.json"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}
